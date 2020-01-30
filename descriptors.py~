@@ -1,0 +1,43 @@
+from collections import OrderedDict
+import cStringIO
+
+class Attr(object):
+
+    def __init__(self, key, default):
+        self.key = key
+        self.default = default
+
+    def __get__(self, instance, owner=None):
+        ':type instance: Info'
+        return instance.get(self.key, self.default)
+
+    def __set__(self, instance, value):
+        ':type instance: Info'
+        instance[self.key]=value
+
+class Info(OrderedDict):
+
+    def __init__(self, *args, **kwargs):
+        super(Info, self).__init__(*args, **kwargs)
+        for val in self.__class__.__dict__.itervalues():
+            if isinstance(val, Attr) and not self.has_key(val.key):
+                self[val.key]=val.default
+
+    def write(self):
+        data = cStringIO.StringIO()
+        for key, value in self.items():
+            data.write('%s=%s\n'%(key, str(value)))
+        return data.getvalue()
+
+class MayaInfo(Info):
+    mayaver = Attr('mayaver', '2015')
+    is64 = Attr('is64', True)
+    platform = Attr('platform', '')
+
+class Maya2016Info(MayaInfo):
+    mayaver = Attr('mayaver', '2016')
+
+if __name__ == "__main__":
+    i = Maya2016Info(platform='win32', is64=False)
+    i['root'] = r'\\ice-145'
+    print i.write()

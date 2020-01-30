@@ -1,0 +1,252 @@
+# _redlineExport_pw by Paul Wiens, November 30 2012
+# v1b1
+# Usage:
+# Copy these files to:  ../Hiero1.5v1.app/Contents/Plugins/site-packages/hiero/exporters/
+        # _redlineExport_pw.py
+        # _redlineExport_trigger_pw.py
+        # _redLineRender_OSA.scpt
+# Open the __init__.py found in the Hiero folder above, and add this line of code under "try:" on line 11:  import _redlineExport_trigger_pw
+# Go to line 31 below, and update the variables where it says GLOBAL VARIABLES TO CHANGE BASED ON YOUR PROJECT
+
+import PySide
+from hiero.core import *
+import os
+from PySide.QtGui import QApplication
+from PySide import QtCore
+
+class formats():
+        def __init__(self, formatName, formatNum):
+                self.formatNum = formatNum
+                self.formatName = formatName
+
+class redlineExport(PySide.QtGui.QWidget):
+        def __init__(self, R3Dshot):
+                super(redlineExport, self).__init__()
+
+                self.R3Dshot = R3Dshot #gets selected RedClip as an argument from the _redlineExport_trigger_pw.py script
+                self.project = self.R3Dshot.project().name()
+                self.sequence = self.R3Dshot.sequence().name()
+                self.shot = self.R3Dshot.name()
+
+                ############################################################
+                ##### GLOBAL VARIABLES TO CHANGE BASED ON YOUR PROJECT #####
+                self.osa = "/Applications/Hiero1.5v1/Hiero1.5v1.app/Contents/Plugins/site-packages/hiero/exporters/_redLineRender_OSA.scpt" # i recommend copying the file here and leaving this variable as it is
+                self.pathGuess = os.path.join("/Volumes", self.project, self.sequence, self.shot, "Plates") # commas represent slashes. Enter the path here to your shot's plates folder
+                self.defaultTicked = ['DPX','JPG','QT'] # change the formats that you wish to have ticked by default. options are: EXR, JPG, QT, DPX, SGI, TIFF, QTW, R3DT
+                self.handles = 10 # redlineExport will export this many handles on either end of your exports.
+                ############################################################
+
+                if os.path.isfile(self.pathGuess) or not os.path.exists(self.pathGuess):
+                        self.pathGuess = ""
+                self.initUI()
+
+        def initUI(self):
+                self.setObjectName( "uk.co.thefoundry.redlineExport" )
+                self.setWindowTitle('Redline Export')
+
+                #Make widgets
+                self._baseFolderLabel = PySide.QtGui.QLabel('Base Output Path :')
+
+                self._baseFolderEditBox = PySide.QtGui.QLineEdit()
+                self._baseFolderEditBox.setText(self.pathGuess)
+
+                self._plateVersionLabel = PySide.QtGui.QLabel("New Plate Version:")
+                self._plateVersionEditBox = PySide.QtGui.QLineEdit()
+
+                plateVersion = self.getPlateVersion() # get Latest Plate version
+
+                #set Old Plate version label
+                if plateVersion == "00":
+                        plateVersionLabel = "no plates rendered"
+                else:
+                        plateVersionLabel = 'Current Plate Version: v' + plateVersion
+                if not os.path.exists(self._baseFolderEditBox.text()):
+                        plateVersionLabel = "Plates folder does not exist"
+                self._oldPlateVersionLabel = PySide.QtGui.QLabel(plateVersionLabel)
+
+                #set New Plate version label
+                if (self._baseFolderEditBox.text() != "") and int(plateVersion) > 0 :
+                        if (int(plateVersion) < 10): self.plateVersion = "v0" + str(int(plateVersion) + 1)
+                        else: self.plateVersion = "v" + str(int(plateVersion) + 1)
+                else:
+                        self.plateVersion = "v01"
+
+                self._plateVersionEditBox.setText(self.plateVersion) #set value of editbox
+
+                self._fileButton = PySide.QtGui.QPushButton('Browse')
+                self._fileButton.clicked.connect(self.getFolder)
+
+                self.formats = {}
+                self.formats = {"EXR":                  formats("EXR",2),
+                                                "JPG":                  formats("JPG",3),
+                                                "QT":                       formats("QT",11),
+                                                "DPX":                  formats("DPX",0),
+                                                "SGI":                  formats("SGI",4),
+                                                "TIFF":                 formats("TIFF",1),
+                                                "QTW":                  formats("QTW",10),
+                                                "R3DT":                 formats("R3DT",102)}
+
+                for thisKey in self.formats.keys():
+                        key = self.formats[thisKey]
+                        key.cb = PySide.QtGui.QCheckBox()
+                        key.cb.clicked.connect(self.checked)
+                        key.label = PySide.QtGui.QLabel(key.formatName)
+                        key.label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+                        key.label.setFixedWidth(35)
+                        key.subDir = PySide.QtGui.QLineEdit()
+                        key.subDir.setFixedWidth(100)
+                        key.subDir.setText('/' + key.formatName + '/[ver]/')
+                        if thisKey == 'QT': key.subDir.setText('')
+                        key.renderBut = PySide.QtGui.QPushButton('Render')
+                        key.renderBut.setToolTip('Render now using <b>Redline</b> ')
+                        key.renderBut.resize(key.renderBut.sizeHint())
+                        key.renderBut.clicked.connect(self.renderFormat)
+                        key.renderBut.setObjectName(thisKey)
+                QTkey = self.formats['QT']
+                QTkey.QTcodecList = {       "Apple ProRes 4444":30,
+                                                                "Apple ProRes 422 HQ":0,
+                                                                "Apple ProRes 422":1,
+                                                                "Apple ProRes 422 LT":31,
+                                                                "Apple ProRes 422 Proxy":32,
+                                                                "H264":2,
+                                                                "Uncompressed 8-bit 4:2:2":12,
+                                                                "Uncompressed 10-bit 4:2:2":13,
+                                                                "Motion JpegA":3,
+                                                                "Motion JpegB":4,
+                                                                "ComponentVideo":5,
+                                                                "H263":6,
+                                                                "RawCodec":7,
+                                                                "Pixlet":8,
+                                                                "DVCPROHD720P":9,
+                                                                "JPEG":10,
+                                                                "Animation/RLE":11,
+                                                                "Black Magic RGB 10bit":15,
+                                                                "AJA Kona 10bit Log RGB":17,
+                                                                "AJA Kona 10-bit RGB":18,
+                                                                "AVID 1080P DNxHD 36 8-bit (23.98, 24, 25)":20,
+                                                                "AVID 1080P DNxHD 115/120 8-bit (23.98, 24, 25)":21,
+                                                                "AVID 1080P DNxHD 175/185 8-bit (23.98, 24, 25)":22,
+                                                                "AVID 1080P DNxHD 175/185 10-bit (23.98, 24, 25)":23,
+                                                                "AVID  720P DNxHD 60/75 8-bit (23.98, 25, 29.97)":24,
+                                                                "AVID  720P DNxHD 90/110 8-bit (23.98, 29.97)":25,
+                                                                "AVID  720P DNxHD 90/110 10-bit (23.98, 29.97)":26,
+                                                                "VID    720P DNxHD 120/145 8-bit (50, 59.94)":27,
+                                                                "AVID  720P DNxHD 185/220 8-bit (50, 59.94)":28,
+                                                                "AVID  720P DNxHD 185/220 10-bit (50, 59.94)":29        }
+                QTkey.QTcompress = PySide.QtGui.QComboBox()
+                QTkey.QTcompress.setStyleSheet("QComboBox { combobox-popup: 0; }")
+                QTkey.QTcompress.setMaxVisibleItems(30)
+                QTkey.QTcompress.addItems(sorted(QTkey.QTcodecList.keys()))
+                QTkey.QTcompress.setCurrentIndex(16)
+
+                for thisFormat in self.defaultTicked:
+                        self.formats[thisFormat].cb.setChecked(1)
+
+                #Make Sub Layouts
+                self._labelsLayout = PySide.QtGui.QVBoxLayout()
+                self._widgetsLayout = PySide.QtGui.QVBoxLayout()
+                self._fileButtonLayout = PySide.QtGui.QVBoxLayout()
+                self._topLayout = PySide.QtGui.QHBoxLayout()
+
+                self._cbLayout = PySide.QtGui.QVBoxLayout()
+
+                for thisKey in self.formats.keys():
+                        key = self.formats[thisKey]
+                        self.checked()
+                        key.layout = PySide.QtGui.QHBoxLayout()
+
+                #Add widgets to layouts
+                self._labelsLayout.addSpacing(3)
+                self._labelsLayout.addWidget(self._baseFolderLabel)
+                self._labelsLayout.addSpacing(8)
+                self._labelsLayout.addWidget(self._plateVersionLabel)
+
+                self._widgetsLayout.addSpacing(2)
+                self._widgetsLayout.addWidget(self._baseFolderEditBox)
+                self._widgetsLayout.addSpacing(2)
+                self._widgetsLayout.addWidget(self._plateVersionEditBox)
+
+                self._fileButtonLayout.addWidget(self._fileButton)
+                self._fileButtonLayout.addWidget(self._oldPlateVersionLabel)
+
+                for thisKey in self.formats.keys(): #add basic widgets to format layouts
+                        key = self.formats[thisKey]
+                        key.layout.addWidget(key.cb)
+                        key.layout.addWidget(key.label)
+                        key.layout.addWidget(key.subDir)
+                        key.layout.addWidget(key.renderBut)
+
+                QTkey = self.formats['QT']
+                QTkey.layout.addWidget(QTkey.QTcompress)
+
+                for thisKey in self.formats.keys():
+                        key = self.formats[thisKey]
+                        key.layout.addStretch(0)
+
+                self._cbLayout.addLayout(self.formats['EXR'].layout)        #add format layouts to main format layout
+                self._cbLayout.addLayout(self.formats['JPG'].layout)
+                self._cbLayout.addLayout(self.formats['QT'].layout)
+                self._cbLayout.addLayout(self.formats['DPX'].layout)
+                self._cbLayout.addLayout(self.formats['SGI'].layout)
+                self._cbLayout.addLayout(self.formats['TIFF'].layout)
+                self._cbLayout.addLayout(self.formats['QTW'].layout)
+                self._cbLayout.addLayout(self.formats['R3DT'].layout)
+
+                #Make main layouts
+                self._topLayout.addLayout(self._labelsLayout)
+                self._topLayout.addLayout(self._widgetsLayout)
+                self._topLayout.addLayout(self._fileButtonLayout)
+
+                self._layout = PySide.QtGui.QVBoxLayout()
+                self._layout.addLayout(self._topLayout)
+                self._layout.addSpacing(25)
+                self._layout.addLayout(self._cbLayout)
+                self._layout.addStretch(0)
+
+                #Set Main Layout
+                self.setLayout(self._layout)
+                self.setGeometry(300, 300, 600, 250)
+
+        def checked(self):
+                for thisKey in self.formats.keys():
+                        key = self.formats[thisKey]
+                        if not (key.cb.checkState() ):
+                                key.subDir.setDisabled(1)
+                                key.renderBut.setDisabled(1)
+                        else:
+                                key.subDir.setDisabled(0)
+                                key.renderBut.setDisabled(0)
+
+        def getFolder(self):
+                self._baseFolderEditBox.setText(str(PySide.QtGui.QFileDialog.getExistingDirectory(self, dir = self._baseFolderEditBox.text(), caption = "Select Base Plate Directory")) )
+
+        def getPlateVersion(self):
+                latest = "00"
+                d = self._baseFolderEditBox.text()
+                for dirname, dirnames, filenames in os.walk(d):
+                        for subdirname in dirnames:
+                                if len(subdirname) == 3 and not os.path.isfile(subdirname) and subdirname[0] == "v" and subdirname[-2:].isdigit():
+                                        if int(subdirname[-2:]) > int(latest):
+                                                latest = subdirname[-2:]
+                return latest
+
+        def renderFormat(self):
+                filePath = self.R3Dshot.source().mediaSource().firstpath()
+                thisKey = self.focusWidget().objectName()
+                key = self.formats[thisKey]
+                outPath = self._baseFolderEditBox.text() + key.subDir.text()
+                outPath = outPath.replace('[ver]', self._plateVersionEditBox.text() )
+                QTcompress = self.formats['QT'].QTcompress.currentText()
+                QTcompressIndex = "15"
+                if thisKey == "QT":
+                        QTcompressIndex = str(key.QTcodecList[QTcompress])
+                start = str( int(self.R3Dshot.sourceIn()) - self.handles) #include handles
+                end = str( int(self.R3Dshot.sourceOut()) + self.handles) #include handles
+                arguments = (       " --format " + str(key.formatNum) +
+                                                " --bitDepth 16 --res 1 --pad 4 --fit 2 --resizeX 1920 --resizeY 1080 --i " + filePath +
+                                                " --outDir " + outPath +
+                                                " --useRMD 2 -o " + self.shot +
+                                                " --start " + start + " --end " + end +
+                                                " --renum 1 " + "--QTcodec " + QTcompressIndex + " ;"       )
+                newCmd = 'osascript \"' + self.osa + '\" \"' + arguments + '\"'  # osascript "osa" "arguments"
+                os.system(newCmd)

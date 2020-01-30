@@ -1,0 +1,8 @@
+import moduleclass
+
+
+moduleclass.function()
+moduleclass.set_server('default_server')
+moduleclass.create('hello').definition()
+
+

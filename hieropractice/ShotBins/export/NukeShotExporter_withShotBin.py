@@ -1,0 +1,352 @@
+ # Copyright (c) 2011 The Foundry Visionmongers Ltd.    All Rights Reserved.
+
+import os.path
+import sys
+import hiero.core
+import hiero.core.nuke as nuke
+import hiero.ui
+from hiero.exporters import FnShotExporter
+
+
+class NukeShotExporter_withShotBin(FnShotExporter.ShotTask):
+    def __init__( self, initDict ):
+        """Initialize"""
+        FnShotExporter.ShotTask.__init__( self, initDict )
+
+        self._nothingToDo = True
+
+        if self._source.isOffline():
+            return
+
+        # All clear.
+        self._nothingToDo = False
+
+    def taskStep(self):
+        FnShotExporter.ShotTask.taskStep(self)
+        if self._nothingToDo:
+            return False
+
+
+        script = nuke.ScriptWriter()
+
+        start, end = self.outputRange(ignoreRetimes=True, clampToSource=False)
+        hiero.core.debug( "rootNode range is %s %s %s", start, end, self._startFrame )
+
+        firstFrame = start
+        if self._startFrame is not None:
+            firstFrame = self._startFrame
+
+        # if startFrame is negative we can only assume this is intentional
+        if start < 0 and (self._startFrame is None or self._startFrame >= 0):
+            # We dont want to export an image sequence with a negative frame numbers
+            self.setError("%i Frames of handles will result in a negative frame index.\nFirst frame clamped to 0." % self._cutHandles)
+            start = 0
+
+        # Clip framerate may be invalid, then use parent sequence framerate
+        framerate = self._sequence.framerate()
+        if self._clip.framerate().isValid():
+            framerate = self._clip.framerate()
+        fps = framerate.toFloat()
+
+        # Create the root node, this specifies the global frame range and frame rate
+        rootNode = nuke.RootNode(start, end, fps)
+        rootNode.addProjectSettings(self._projectSettings)
+        script.addNode(rootNode)
+
+        # Set the root node format to default to source format
+        reformat = self._clip.format().addToNukeScript(None)
+        rootNode.setKnob("format", reformat.knob("format"))
+
+        # Calculate any retime required
+        retime = None
+        if self._retime:
+            retime = float(self._item.sourceDuration()) / float(self._item.duration())
+
+        # To add Write nodes, we get a task for the paths with the in the preset
+        # (default is the "Nuke Render" preset) and ask it to generate the Write node for
+        # us, since it knows all about codecs and extensions and can do the token
+        # substitution properly for that particular item.
+        # And doing it here rather than in taskStep out of threading paranoia.
+        self._writeNodes = []
+
+        stackId = "ScriptEnd"
+        self._writeNodes.append( nuke.SetNode(stackId, 0) )
+
+        writePathExists = False
+        writePaths = self._preset._properties["writePaths"]
+
+        for (itemPath, itemPreset) in self._exportTemplate.flatten():
+            for writePath in writePaths:
+                if writePath == itemPath:
+                    # Generate a task on same items as this one but swap in the shot path that goes with this preset.
+                    taskData = hiero.core.TaskData(itemPreset, self._item, self._exportRoot, itemPath, self._version, self._exportTemplate, project=self._project, cutHandles=self._cutHandles, retime=self._retime, startFrame=firstFrame, resolver=self._resolver)
+                    task = hiero.core.taskRegistry.createTaskFromPreset(itemPreset, taskData)
+                    if hasattr(task, "nukeWriteNode"):
+                        self._writeNodes.append( nuke.PushNode(stackId) )
+
+                        rf = itemPreset._properties["reformat"]
+                        # If the reformat field has been set, create a reformat node imediately before the write.
+                        if str(rf["to_type"]) == nuke.ReformatNode.kToFormat:
+                            if "width" in rf and "height" in rf and "pixelAspect" in rf and "name" in rf and "resize" in rf:
+                                format = hiero.core.Format(rf["width"], rf["height"], rf["pixelAspect"], rf["name"])
+                                resize=rf["resize"]
+                                reformat = format.addToNukeScript(None, resize=resize)
+                                rootNode.setKnob("format", reformat.knob("format"))
+                                self._writeNodes.append(reformat)
+                            else:
+                                self.setError("reformat made set to kToFormat but preset properties do not containing required settings.")
+
+                        # Add Burnin group (if enabled)
+                        burninGroup = task.addBurninNodes(script=None)
+                        if burninGroup is not None:
+                            self._writeNodes.append(burninGroup)
+
+                        writeNode = task.nukeWriteNode()
+                        writeNode.setKnob("first", start)
+                        writeNode.setKnob("last", end)
+                        self._writeNodes.append(writeNode)
+
+                    writePathExists = True
+                    # MPLEC TODO should enforce in UI that you can't pick things that won't work.
+        if not writePaths:
+            # Blank preset is valid, if preset has been set and doesnt exist, report as error
+            self.setError(str("NukeShotExporter_withShotBin: No write node destination selected"))
+
+
+        # Collate tracks and add extra read nodes.
+        collatedItems = []
+
+        if self._preset.properties()["collateTracks"]:
+
+            # The collate tracks option will detect any trackitems on other tracks which overlap
+            # so they can be included in the nuke script.
+            for track in self._sequence.videoTracks():
+
+                # exclude parent track
+                if track == self._track:
+                    continue
+
+                for trackitem in track:
+
+                    # Starts before or at same time
+                    if trackitem.timelineIn() <= self._item.timelineIn():
+                        # finishes after start
+                        if trackitem.timelineOut() > self._item.timelineIn():
+                            collatedItems.append(trackitem)
+
+                    # Starts after
+                    elif trackitem.timelineIn() > self._item.timelineIn():
+                        # Starts before end
+                        if trackitem.timelineIn() < self._item.timelineOut():
+                            collatedItems.append(trackitem)
+
+
+            hiero.core.debug( "COLLATED ITEMS (%s) - %s" % (str(self._preset.properties()["collateTracks"]), str(collatedItems)) )
+
+
+        # If this flag is true, a read node pointing at the original media will be added
+        # If read nodes which point at export items are selected, this flag will be set False
+        originalMediaReadNode = True
+
+        for item in collatedItems + [self._item]:
+            originalMediaReadNode = True
+            # Build read nodes for selected entries in the shot template
+            readPaths = self._preset._properties["readPaths"]
+            for (itemPath, itemPreset) in self._exportTemplate.flatten():
+                for readPath in readPaths:
+                    if itemPath == readPath:
+
+                        # Generate a task on same items as this one but swap in the shot path that goes with this preset.
+                        taskData = hiero.core.TaskData(itemPreset, item, self._exportRoot, itemPath, self._version, self._exportTemplate, project=self._project, cutHandles=self._cutHandles, retime=self._retime, startFrame=self._startFrame, resolver=self._resolver)
+                        task = hiero.core.taskRegistry.createTaskFromPreset(itemPreset, taskData)
+
+                        readNodePath = task.resolvedExportPath()
+                        itemStart, itemEnd = task.outputRange()
+                        itemFirstFrame = firstFrame
+                        if self._startFrame:
+                            itemFirstFrame = self._startFrame
+
+                        if os.path.splitext(readNodePath)[1].lower() in ('.mov', '.r3d', '.avi', '.mpg', '.mpeg'):
+                            # Dont specifiy frame range when media is single file
+                            newSource = hiero.core.MediaSource(readNodePath)
+                            itemEnd = itemEnd - itemStart
+                            itemStart = 0
+
+                        else:
+                            # File is image sequence, so specify frame range
+                            newSource = hiero.core.MediaSource(readNodePath + (" %i-%i" % task.outputRange()))
+
+
+                        newClip = hiero.core.Clip(newSource, itemStart, itemEnd)
+
+                        colourTransform = None
+                        try:
+                            # If this preset has an output colourspace property, then use this as the input colourspace
+                            if "colourspace" in itemPreset.properties():
+                                colourTransform = str(itemPreset.properties()["colourspace"])
+                            else:
+                                # else use the existing clips colour space
+                                colourTransform = str(self._clip.sourceMediaColourTransform())
+                        except:
+                            # No colour transform set, ignore
+                            hiero.core.debug( "Failed to get Colourspace for read node" )
+                            pass
+
+                        originalMediaReadNode = False
+
+                        if self._cutHandles is None:
+                            newClip.addToNukeScript(script, firstFrame=itemFirstFrame, trimmed=True, colourTransform=colourTransform, nodeLabel=item.parent().name())
+                        else:
+                            # Clone track item and replace source with new clip (which may be offline)
+                            newTrackItem = hiero.core.TrackItem(item.name(), item.mediaType())
+
+                            # Handles may not be exactly what the user specified. They maybe clamped to media range
+                            inHandle, outHandle = 0, 0
+                            if self._cutHandles:
+                                # Get the output range without handles
+                                inHandle, outHandle = task.outputHandles()
+                                hiero.core.debug( "in/outHandle %s %s", inHandle, outHandle )
+
+
+                            newTrackItem.setSource(newClip)
+
+                            # Trackitem in/out
+                            newTrackItem.setTimelineIn(item.timelineIn())
+                            newTrackItem.setTimelineOut(item.timelineOut())
+
+                            # Source in/out is the clip range less the handles.
+                            newTrackItem.setSourceIn(inHandle * -1)
+                            newTrackItem.setSourceOut((newClip.duration() -1 )- outHandle)
+
+                            #print "New trackitem (src/dst/clip) ", newTrackItem.sourceDuration(), newTrackItem.duration(), newClip.duration()
+
+                            # Add track item to nuke script
+                            newTrackItem.addToNukeScript(script, firstFrame=itemFirstFrame, includeRetimes=self._retime, startHandle=self._cutHandles, endHandle=self._cutHandles, colourTransform=colourTransform, nodeLabel=item.parent().name() )
+
+
+            if originalMediaReadNode:
+                clip = item.source()
+
+                # Add a Read for this Clip.
+                if self._cutHandles is None:
+                    clip.addToNukeScript(script, firstFrame=firstFrame, trimmed=True, nodeLabel=item.parent().name())
+                else:
+                    item.addToNukeScript(script, firstFrame=firstFrame, includeRetimes=self._retime, startHandle=self._cutHandles, endHandle=self._cutHandles, nodeLabel=item.parent().name() )
+
+        metadataNode = nuke.MetadataNode(metadatavalues=[("hiero/project", self._projectName)] )
+
+        # Apply timeline offset to nuke output
+        startTimeCode = hiero.core.Timecode.timeToString(self._clip.timecodeStart(), framerate, hiero.core.Timecode.kDisplayTimecode)
+        if self._cutHandles is None:
+            script.addNode(nuke.Node("AddTimeCode", startcode=startTimeCode, frame=start, metafps="false", useFrame="true", fps=self._clip.framerate().toFloat()))
+        else:
+            script.addNode(nuke.Node("AddTimeCode", startcode=startTimeCode, frame=(start - self._item.sourceIn()) + self._cutHandles, metafps="false", useFrame="true", fps=self._clip.framerate().toFloat()))
+        # The AddTimeCode field will insert an integer framrate into the metadata, if the framerate is floating point, we need to correct this
+        metadataNode.addMetadata([("input/frame_rate",framerate.toFloat())])
+
+        script.addNode(metadataNode)
+
+        # Generate Write nodes for nuke renders.
+        for node in self._writeNodes:
+            script.addNode(node)
+
+
+
+
+
+
+
+        #MATT
+        #print "Looking for shot bin :", self._item.name()
+        clipsBin = self._project.clipsBin()
+        mainShotBin = None
+        for item in clipsBin.items() :
+            if isinstance(item, hiero.core.Bin) and item.name() == "Shot Bins" :
+                mainShotBin = item
+                break
+
+        includeCount = 0
+        failCount = 0
+        if mainShotBin :
+            for shotBin in mainShotBin.items() :
+                if type(shotBin) == hiero.core.Bin and (shotBin.name() == self._item.name() or shotBin.name() == "All Shots") :
+                    #print "Found Shot Bin :", self._item.name()
+                    #create output bin
+                    for item in shotBin.items() :
+
+                        #print "\tExporting", item.name(), "with the Nuke script."
+                        try :
+                            firstFrame = int(item.activeItem().mediaSource().startTime())
+                            lastFrame = int(item.activeItem().mediaSource().startTime()) + int(item.activeItem().mediaSource().duration())
+                            newRead = nuke.Node("Read", file=str(item.activeItem().mediaSource().firstpath()), first=firstFrame, last=lastFrame)
+                            script.addNode(newRead)
+                            includeCount += 1
+                        except :
+                            failCount += 1
+
+        print "Exporting", includeCount, "reference clips with shot :", self._item.name(), " -", failCount, "items failed to be added."
+
+
+
+
+
+
+
+
+        scriptFilename = self.resolvedExportPath()
+        hiero.core.debug( "Writing Script to: %s", scriptFilename )
+
+        script.writeToDisk(scriptFilename)
+
+        # Nothing left to do, return False.
+        return False
+
+    def outputHandles ( self, ignoreRetimes = True):
+        return self._outputHandles(ignoreRetimes)
+
+    def outputRange(self, ignoreHandles=False, ignoreRetimes=True, clampToSource=True):
+        """outputRange(self)
+        Returns the output file range (as tuple) for this task, if applicable"""
+        start = 0
+        end  = 0
+        if isinstance(self._item, (hiero.core.TrackItem, hiero.core.Clip)):
+            # Get input frame range
+            start, end = self.inputRange(ignoreHandles=ignoreHandles, ignoreRetimes=ignoreRetimes, clampToSource=clampToSource)
+
+            if self._retime and isinstance(self._item, hiero.core.TrackItem):
+                end = (end - self._item.sourceDuration()) + self._item.duration()
+
+            # Offset by custom start time
+            if self._startFrame is not None:
+                end = self._startFrame + (end - start)
+                start = self._startFrame
+
+        return (start, end)
+
+
+class NukeShotWithShotBinPreset(hiero.core.TaskPresetBase):
+    def __init__(self, name, properties):
+        """Initialise presets to default values"""
+        hiero.core.TaskPresetBase.__init__(self, NukeShotExporter_withShotBin, name)
+
+        # Set any preset defaults here
+        self._properties["readPaths"] = []
+        self._properties["writePaths"] = []
+        self._properties["collateTracks"] = False
+
+        # Update preset with loaded data
+        self._properties.update(properties)
+
+    def supportedItems(self):
+        return hiero.core.TaskPreset.kTrackItem
+
+    def pathChanged(self, oldPath, newPath):
+        for pathlist in (self._properties["readPaths"], self._properties["writePaths"]):
+            for path in pathlist:
+                if path == oldPath:
+                    pathlist.remove(oldPath)
+                    pathlist.append(newPath)
+
+
+hiero.core.debug( "Registering NukeShotExporter_withShotBin" )
+hiero.core.taskRegistry.registerTask(NukeShotWithShotBinPreset, NukeShotExporter_withShotBin)

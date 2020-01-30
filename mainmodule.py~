@@ -1,0 +1,11 @@
+
+
+
+def testfunc():
+    print 'testFunc!'
+
+
+def main():
+    print 'main'
+    print __file__
+

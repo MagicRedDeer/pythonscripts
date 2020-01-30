@@ -1,0 +1,114 @@
+# Copyright (c) 2011 The Foundry Visionmongers Ltd.  All Rights Reserved.
+
+import os.path
+import PySide.QtCore
+import PySide.QtGui
+
+import hiero.ui
+
+import NukeShotExporter_withShotBin
+
+class NukeShotExporterUI_withShotBin(hiero.ui.TaskUIBase):
+    def __init__(self, preset):
+        """UI for NukeShotExporter task."""
+        hiero.ui.TaskUIBase.__init__(self, NukeShotExporter_withShotBin.NukeShotExporter_withShotBin, preset, "Nuke Project File with Shots Bin")
+
+        self._uiProperties = []
+
+    def initialise(self, preset, exportStructure):
+        """When Parent ExportStructure is opened in the ui,
+        initialise is called for each preset. Register any callbacks here"""
+        paths = preset.properties()["readPaths"] + preset.properties()["writePaths"]
+        for path in paths:
+            element = exportStructure.childElement(path)
+
+            if element is not None:
+                element.addCallback(preset.pathChanged)
+
+
+
+
+    def readPresetChanged (self, topLeft, bottomRight):
+        hiero.core.debug( "readPresetChanged" )
+        presetValue = self._preset._properties["readPaths"] = []
+        model = self._readModel
+        for row in range(0, model.rowCount()):
+            item = model.item(row, 0)
+            if item.data(PySide.QtCore.Qt.CheckStateRole) == PySide.QtCore.Qt.Checked:
+                presetValue.append(item.text())
+                element = self._exportTemplate.childElement(item.text())
+                if element is not None:
+                    element.addCallback(self._preset.pathChanged)
+
+        hiero.core.debug( "readPaths (%s)" % str(presetValue) )
+
+    def writePresetChanged (self, topLeft, bottomRight):
+        hiero.core.debug( "writePresetChanged" )
+        presetValue = self._preset._properties["writePaths"] = []
+
+        model = self._writeModel
+        for row in range(0, model.rowCount()):
+            item = model.item(row, 0)
+            if item.data(PySide.QtCore.Qt.CheckStateRole) == PySide.QtCore.Qt.Checked:
+                presetValue.append(item.text())
+                element = self._exportTemplate.childElement(item.text())
+                if element is not None:
+                    element.addCallback(self._preset.pathChanged)
+
+        hiero.core.debug( "writePaths (%s)" % str(presetValue) )
+
+    def populateUI (self, widget, exportTemplate):
+        if exportTemplate:
+
+            self._exportTemplate = exportTemplate
+
+            properties = self._preset.properties()
+
+            layout = PySide.QtGui.QFormLayout()
+
+            self._readList = PySide.QtGui.QListView()
+            self._writeList = PySide.QtGui.QListView()
+
+            self._readList.setMinimumHeight(50)
+            self._writeList.setMinimumHeight(50)
+            self._readList.resize(200,50)
+            self._writeList.resize(200,50)
+
+
+            self._readModel = PySide.QtGui.QStandardItemModel()
+            self._writeModel = PySide.QtGui.QStandardItemModel()
+
+            # Default to the empty item unless the preset has a value set.
+            for model, presetValue in ((self._readModel, properties["readPaths"]), (self._writeModel, properties["writePaths"])):
+                for path, preset in exportTemplate.flatten():
+
+                    if model is self._writeModel:
+                        if not hasattr(preset._parentType, 'nukeWriteNode'):
+                            continue
+
+                    item = PySide.QtGui.QStandardItem(path)
+                    item.setFlags(PySide.QtCore.Qt.ItemIsUserCheckable | PySide.QtCore.Qt.ItemIsEnabled)
+
+                    item.setData(PySide.QtCore.Qt.Unchecked, PySide.QtCore.Qt.CheckStateRole)
+                    if path in presetValue:
+                        item.setData(PySide.QtCore.Qt.Checked, PySide.QtCore.Qt.CheckStateRole)
+
+                    model.appendRow(item)
+
+            self._readList.setModel(self._readModel)
+            self._writeList.setModel(self._writeModel)
+
+            self._readModel.dataChanged.connect(self.readPresetChanged)
+            layout.addRow("Read Nodes:", self._readList)
+            self._writeModel.dataChanged.connect(self.writePresetChanged)
+            layout.addRow("Write Nodes:", self._writeList)
+
+            key, value, label = "collateTracks", False, "Collate Tracks"
+            uiProperty = hiero.ui.UIPropertyFactory.create(type(value), key=key, value=value, dictionary=self._preset._properties, label=label+":", tooltip=label)
+            layout.addRow(label+":", uiProperty)
+            self._uiProperties.append(uiProperty)
+
+
+            widget.setLayout(layout)
+
+hiero.ui.taskUIRegistry.registerTaskUI(NukeShotExporter_withShotBin.NukeShotWithShotBinPreset, NukeShotExporterUI_withShotBin)

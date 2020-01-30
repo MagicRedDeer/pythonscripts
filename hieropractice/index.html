@@ -1,0 +1,152 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Examples &mdash; Hiero Python Developers Guide</title>
+    <link rel="stylesheet" href="../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '9.0v4',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="copyright" title="Copyright" href="../copyright.html" />
+    <link rel="top" title="Hiero Python Developers Guide" href="../index.html" />
+    <link rel="next" title="Legal Info" href="../copyright.html" />
+    <link rel="prev" title="foundry.rpc reference" href="../api/api_foundry_rpc.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../copyright.html" title="Legal Info"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="../api/api_foundry_rpc.html" title="foundry.rpc reference"
+             accesskey="P">previous</a> |</li>
+<li>
+  <span><a href="../index.html"><img class="logo" style="vertical-align: middle" width=30 height=30 src="../_static/HieroIcon.png" alt="Logo"/>Python Dev Guide</a> &raquo;</span>
+</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="examples">
+<h1>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h1>
+<p>The following examples can also be found in Hiero&#8217;s site-packages directory, located here:</p>
+<blockquote>
+<div><p><strong>Mac OS X</strong></p>
+<div class="highlight-cpp"><pre>/Applications/Nuke9.0v4/Nuke9.0v4.app/Contents/MacOS/pythonextensions/site-packages/hiero/examples/</pre>
+</div>
+<p><strong>Linux</strong></p>
+<div class="highlight-cpp"><pre>/usr/local/Nuke9.0v4/pythonextensions/site-packages/hiero/examples/</pre>
+</div>
+<p><strong>Windows</strong></p>
+<div class="highlight-cpp"><pre>C:\Program Files\Nuke9.0v4\pythonextensions\site-packages\hiero\examples\</pre>
+</div>
+<p>The following examples are included:</p>
+</div></blockquote>
+<ul class="simple">
+<li><a class="reference external" href="bin_drop.py">bin_drop.py</a> Class to show how to handle drop events in the bin view. </li>
+<li><a class="reference external" href="conform_rules.py">conform_rules.py</a> Class to show how to handle drop events in the bin view. </li>
+<li><a class="reference external" href="conformer_options.py">conformer_options.py</a> conformer_options.py - Shows how to set options for the Conform (Match Media) and Import Folder dialog. (for creating custom conform rules, see also conform_rules.py). </li>
+<li><a class="reference external" href="create_example.py">create_example.py</a> Shows how to create a new project, add clips, and create a sequence. </li>
+<li><a class="reference external" href="custom_guides.py">custom_guides.py</a> Example shows how you can add custom viewer guides and masks via Python. If you wish for this code to be run on startup, copy it to your &lt;HIERO_PATH&gt;/StartupUI directory. Run: help(hiero.ui.guides) for more info. </li>
+<li><a class="reference external" href="custom_soft_effect.py">custom_soft_effect.py</a> custom_soft_effect.py - Example of registering a custom Soft Effect. </li>
+<li><a class="reference external" href="custom_spreadsheet.py">custom_spreadsheet.py</a> Adds custom spreadsheet columns and right-click menu for setting the Shot Status, and Artist Shot Assignement. </li>
+<li><a class="reference external" href="custom_transcode.py">custom_transcode.py</a> Example of a custom transcoder. </li>
+<li><a class="reference external" href="custom_transcode_ui.py">custom_transcode_ui.py</a> Example of the user interface for a custom transcoder (goes with the custom_transcode.py code). </li>
+<li><a class="reference external" href="keyboard_shortcuts.py">keyboard_shortcuts.py</a> This example shows how you can add custom keyboard shortcuts to Hiero. If you wish for this code to be run on startup, copy it to your &lt;HIERO_PATH&gt;/Startup directory. </li>
+<li><a class="reference external" href="localisation_helpers.py">localisation_helpers.py</a> Localisation Helper Functions -. These methods allow you to Localise Clips on Bins, Shots, Tracks and Sequences. </li>
+<li><a class="reference external" href="multi_export.py">multi_export.py</a> An example which shows how to spawn multiple exports from a Sequence from right-click menu in the Project Bin. </li>
+<li><a class="reference external" href="naming_example.py">naming_example.py</a> Example for how to override hiero naming scheme. </li>
+<li><a class="reference external" href="new_sequence_from_selection.py">new_sequence_from_selection.py</a> Context menu option to create new sequences from selected Clips in the Bin View. If Clips are named as Stereo left and right then one sequence will be created with left and right tagged tracks. </li>
+<li><a class="reference external" href="nuke_write.py">nuke_write.py</a> An example of creating a nuke (*.nk) script and using Nuke to render it. </li>
+<li><a class="reference external" href="playback_events_statusbar.py">playback_events_statusbar.py</a> Shows how to use the Playback Started/Stopped events and adds a simple message to the MainWindow Status Bar. </li>
+<li><a class="reference external" href="project_events.py">project_events.py</a> Shows how to use hiero.core.events to register callbacks for startup, shutdown and various project event types. See help on hiero.core.events.registerInterest and hiero.core.events.unregisterInterest for more details. </li>
+<li><a class="reference external" href="rush_render_auto_submit.py">rush_render_auto_submit.py</a> Example to submit a Transcode render to a Rush render farm, automatically start the render, and open IRush. </li>
+<li><a class="reference external" href="rush_render_start_irush.py">rush_render_start_irush.py</a> Example to submit a Transcode render to a Rush render farm. </li>
+<li><a class="reference external" href="spreadsheet_csv_export.py">spreadsheet_csv_export.py</a> This Example shows how to register a custom menu to the Spreadsheet View and exports the contents of the Spreadsheet as a CSV file. Usage: Right-click on a row of the Spreadsheet, select Export &gt; Spreadsheet to .CSV. Note: The &#8216;Action&#8217; column is not currently hooked up and it does not currently take &#8216;Drop Frame&#8217; into account. </li>
+<li><a class="reference external" href="versioning_example.py">versioning_example.py</a> Example for how to override hiero versioning. </li>
+<li><a class="reference external" href="web_browser.py">web_browser.py</a> An example of creating a dockable panel from Python. This script creates a simple PySide Qt web browser. </li>
+</ul>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="../api/api_foundry_rpc.html"
+                        title="previous chapter">foundry.rpc reference</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="../copyright.html"
+                        title="next chapter">Legal Info</a></p>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../copyright.html" title="Legal Info"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="../api/api_foundry_rpc.html" title="foundry.rpc reference"
+             >previous</a> |</li>
+<li>
+  <span><a href="../index.html"><img class="logo" style="vertical-align: middle" width=30 height=30 src="../_static/HieroIcon.png" alt="Logo"/>Python Dev Guide</a> &raquo;</span>
+</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; <a href="../copyright.html">Copyright</a> 2015, The Foundry. Python Dev Guide for NukeStudio 9.0v4.
+      Last updated on Jan 30, 2015.
+    </div>
+  </body>
+</html>

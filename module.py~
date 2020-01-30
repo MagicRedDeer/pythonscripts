@@ -1,0 +1,7 @@
+
+k = None
+
+
+def updateK(val=1):
+    global k
+    k = val

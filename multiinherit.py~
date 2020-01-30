@@ -1,0 +1,14 @@
+class Base1(object):
+    def __init__(self):
+        print 'Base 1 init'
+
+class Base2(object):
+    def __init__(self):
+        print 'Base 2 init'
+
+class Child(Base1, Base2):
+    def __init__(self):
+        super(Child, Child).__init__()
+
+if __name__ == '__main__':
+    child = Child()
